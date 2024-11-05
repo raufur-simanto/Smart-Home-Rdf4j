@@ -1,0 +1,60 @@
+#### SELECT Queries ####
+
+PREFIX : <http://users.jyu.fi/~mrrahman/smart-home-individuals#> 
+PREFIX smart-home: <http://www.semanticweb.org/shimanto/ontologies/2024/10/smart-home/> 
+
+SELECT ?device ?type ?name ?status 
+WHERE { 
+  ?device rdf:type ?type ; 
+          smart-home:deviceName ?name ; 
+          smart-home:deviceStatus ?status . 
+
+}
+
+
+### DESCRIBE Queries ###
+PREFIX : <http://users.jyu.fi/~mrrahman/smart-home-individuals#>
+PREFIX smart-home: <http://www.semanticweb.org/shimanto/ontologies/2024/10/smart-home/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+DESCRIBE ?device
+WHERE {
+  ?device rdf:type smart-home:SmartCamera . 
+}
+
+
+### CONSTRUCT Queries ###
+PREFIX : <http://users.jyu.fi/~mrrahman/smart-home-individuals#>
+PREFIX smart-home: <http://www.semanticweb.org/shimanto/ontologies/2024/10/smart-home/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+CONSTRUCT {
+  ?device rdf:type ?type ;
+          smart-home:deviceName ?name ;
+          smart-home:deviceStatus ?status .
+  
+  # Optional properties for specific device types
+  ?device smart-home:color ?color ;
+          smart-home:temperatureSetting ?temperatureSetting .
+}
+WHERE {
+  # Common device properties
+  ?device rdf:type ?type ;
+          smart-home:deviceName ?name ;
+          smart-home:deviceStatus ?status .
+
+  # Optional device-specific properties
+  OPTIONAL { ?device smart-home:color ?color . }
+  OPTIONAL { ?device smart-home:temperatureSetting ?temperatureSetting . }
+}
+
+
+### ASK Queries ###
+PREFIX : <http://users.jyu.fi/~mrrahman/smart-home-individuals#>
+PREFIX smart-home: <http://www.semanticweb.org/shimanto/ontologies/2024/10/smart-home/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+ASK {
+  ?device rdf:type smart-home:SmartLight .
+}

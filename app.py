@@ -2,6 +2,10 @@
 from flask import Flask, render_template, request, jsonify
 from SPARQLWrapper import SPARQLWrapper, JSON, XML
 import json
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -36,9 +40,15 @@ def query():
         if query_type == 'SELECT' or query_type == 'ASK':
             sparql.setReturnFormat(JSON)
         else:
-            sparql.setReturnFormat(XML)
+            # For CONSTRUCT queries, we'll use JSON-LD format
+            sparql.setReturnFormat(JSON)
 
         results = sparql.query().convert()
+
+        # Debug logging
+        logger.debug(f"Query type: {query_type}")
+        # logger.debug(f"Results type: {type(results)}")
+        # logger.debug(f"Results: {results}")
 
         if query_type == 'SELECT':
             processed_results = process_select_results(results)
@@ -53,8 +63,51 @@ def query():
                 'type': 'ASK',
                 'results': results.get('boolean', False)
             })
+        elif query_type == 'CONSTRUCT':
+            # Process CONSTRUCT results
+            if isinstance(results, bytes):
+                triples_str = results.decode('utf-8')
+                triple_lines = triples_str.strip().split('\n')
+                triples = []
+                
+                
+                for line in triple_lines:
+                    # Skip empty lines
+                    if not line.strip():
+                        continue
+                    
+                    # Remove the trailing dot and split by spaces
+                    parts = line.strip(' .').split(' ', 2)
+                    if len(parts) == 3:
+                        subject = parts[0].strip('<>')
+                        predicate = parts[1].strip('<>')
+                        object_value = parts[2]
+                        # logger.info(f"Triple: {subject} {predicate} {object_value}")
+                        
+                        # Remove quotes from literal values
+                        if object_value.startswith('"') and object_value.endswith('"'):
+                            object_value = object_value[1:-1]
+                        else:
+                            object_value = object_value.strip('<>')
+                            
+                        triples.append({
+                            'subject': format_uri(subject),
+                            'predicate': format_uri(predicate),
+                            'object': object_value
+                        })
+                
+                return jsonify({
+                    'success': True,
+                    'type': 'CONSTRUCT',
+                    'results': triples
+                })
+            
+            return jsonify({
+                'success': False,
+                'error': 'Unexpected result format'
+            })
         else:
-            # CONSTRUCT or DESCRIBE results
+            # DESCRIBE results
             return jsonify({
                 'success': True,
                 'type': query_type,
@@ -62,6 +115,7 @@ def query():
             })
 
     except Exception as e:
+        print(f"Error in query route: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -101,6 +155,12 @@ def process_select_results(results):
         rows.append(row)
     
     return {'headers': headers, 'rows': rows}
+
+def format_uri(uri):
+    """Format URI to show only the relevant part"""
+    if '#' in uri:
+        return uri.split('#')[-1]
+    return uri.split('/')[-1]
 
 if __name__ == '__main__':
     app.run(port=5000)

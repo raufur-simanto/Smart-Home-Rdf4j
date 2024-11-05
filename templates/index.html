@@ -38,6 +38,73 @@
             background-color: #f0f0f0;
             min-height: 100px;
         }
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .result-table th,
+        .result-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .result-table th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+
+        .result-table tr:nth-child(even) {
+            background-color: #f8f8f8;
+        }
+
+        .result-table tr:hover {
+            background-color: #f0f0f0;
+        }
+
+        .error {
+            color: red;
+            padding: 10px;
+            border: 1px solid red;
+            background-color: #fee;
+            margin: 10px 0;
+        }
+
+        .ask-result {
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+            text-align: center;
+        }
+
+        .ask-label {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        .ask-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .ask-value.true {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+
+        .ask-value.false {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
     </style>
 </head>
 <body>
@@ -79,47 +146,199 @@ WHERE { ?s ?p ?o }</textarea>
             })
             .then(response => response.json())
             .then(data => {
-                if (!data.success) {
-                    resultDiv.innerHTML = `Error: ${data.error}`;
-                    return;
-                }
-                
-                if (data.type === 'SELECT') {
-                    displaySelectResults(data.results);
-                } else {
-                    resultDiv.innerHTML = `<pre>${data.results}</pre>`;
-                }
+                console.log('Server response:', data);
+                displayResults(data);
             })
             .catch(error => {
                 resultDiv.innerHTML = `Error: ${error.message}`;
             });
         }
         
-        function displaySelectResults(results) {
+        function displayResults(data) {
             const resultDiv = document.getElementById('result');
-            
-            if (!results.headers || results.headers.length === 0) {
-                resultDiv.innerHTML = '<div>no results ...</div>';
+            resultDiv.innerHTML = '';
+
+            if (!data.success) {
+                resultDiv.innerHTML = `<div class="error">${data.error}</div>`;
                 return;
             }
-            
-            let table = '<table>';
-            table += '<tr>';
-            for (const header of results.headers) {
-                table += `<th>${header}</th>`;
-            }
-            table += '</tr>';
-            
-            for (const row of results.rows) {
-                table += '<tr>';
-                for (const cell of row) {
-                    table += `<td>${cell}</td>`;
+
+            console.log('Query type:', data.type);
+            console.log('Results:', data.results);
+
+            if (data.type === 'ASK') {
+                // Handle ASK query results
+                const resultBox = document.createElement('div');
+                resultBox.className = 'ask-result';
+                resultBox.innerHTML = `
+                    <div class="ask-label">Query Result:</div>
+                    <div class="ask-value ${data.results ? 'true' : 'false'}">
+                        ${data.results ? 'TRUE' : 'FALSE'}
+                    </div>
+                `;
+                resultDiv.appendChild(resultBox);
+            } else if (data.type === 'CONSTRUCT') {
+                // Create table element
+                const table = document.createElement('table');
+                table.className = 'result-table';
+                
+                // Add table header
+                const header = table.createTHead();
+                const headerRow = header.insertRow(0);
+                ['Subject', 'Predicate', 'Object'].forEach(text => {
+                    const th = document.createElement('th');
+                    th.textContent = text;
+                    headerRow.appendChild(th);
+                });
+
+                // Add table body
+                const tbody = table.createTBody();
+                data.results.forEach(triple => {
+                    const row = tbody.insertRow();
+                    const subjectCell = row.insertCell(0);
+                    const predicateCell = row.insertCell(1);
+                    const objectCell = row.insertCell(2);
+
+                    subjectCell.textContent = triple.subject;
+                    predicateCell.textContent = triple.predicate;
+                    objectCell.textContent = triple.object;
+                });
+
+                resultDiv.appendChild(table);
+            } else if (data.type === 'SELECT') {
+                // Handle SELECT query results
+                const table = document.createElement('table');
+                table.className = 'result-table';
+
+                // Create headers
+                if (data.results.headers && data.results.headers.length > 0) {
+                    const header = table.createTHead();
+                    const headerRow = header.insertRow(0);
+                    data.results.headers.forEach(headerText => {
+                        const th = document.createElement('th');
+                        th.textContent = headerText;
+                        headerRow.appendChild(th);
+                    });
                 }
-                table += '</tr>';
+
+                // Create rows
+                if (data.results.rows && data.results.rows.length > 0) {
+                    const tbody = table.createTBody();
+                    data.results.rows.forEach(rowData => {
+                        const row = tbody.insertRow();
+                        rowData.forEach(cellData => {
+                            const cell = row.insertCell();
+                            cell.textContent = cellData;
+                        });
+                    });
+                }
+
+                resultDiv.appendChild(table);
+            } else if (data.type === 'DESCRIBE') {
+                // Create table element
+                const table = document.createElement('table');
+                table.className = 'result-table';
+                
+                // Add table header
+                const header = table.createTHead();
+                const headerRow = header.insertRow(0);
+                ['Subject', 'Predicate', 'Object'].forEach(text => {
+                    const th = document.createElement('th');
+                    th.textContent = text;
+                    headerRow.appendChild(th);
+                });
+
+                // Add table body
+                const tbody = table.createTBody();
+                
+                // Parse the results string into triples
+                const triples = parseDescribeResults(data.results);
+                
+                triples.forEach(triple => {
+                    const row = tbody.insertRow();
+                    const subjectCell = row.insertCell(0);
+                    const predicateCell = row.insertCell(1);
+                    const objectCell = row.insertCell(2);
+
+                    subjectCell.textContent = formatURI(triple.subject);
+                    predicateCell.textContent = formatURI(triple.predicate);
+                    objectCell.textContent = formatValue(triple.object);
+                });
+
+                resultDiv.appendChild(table);
             }
-            
-            table += '</table>';
-            resultDiv.innerHTML = table;
+        }
+
+        function parseDescribeResults(results) {
+            // If results is already an array of triples, return it
+            if (Array.isArray(results)) {
+                return results;
+            }
+
+            // If results is a string, parse it
+            if (typeof results === 'string') {
+                const triples = [];
+                const lines = results.split('\n');
+                
+                lines.forEach(line => {
+                    line = line.trim();
+                    if (!line || line === '.') return;
+                    
+                    // Remove the trailing dot
+                    if (line.endsWith(' .')) {
+                        line = line.slice(0, -2);
+                    }
+
+                    // Split into subject, predicate, object
+                    const parts = line.split(' ');
+                    if (parts.length >= 3) {
+                        const subject = parts[0];
+                        const predicate = parts[1];
+                        // Join the rest as object (in case it contains spaces)
+                        const object = parts.slice(2).join(' ');
+
+                        triples.push({
+                            subject: subject.replace(/[<>]/g, ''),
+                            predicate: predicate.replace(/[<>]/g, ''),
+                            object: object.replace(/[<>]/g, '')
+                        });
+                    }
+                });
+
+                return triples;
+            }
+
+            // If we can't parse the results, return empty array
+            console.error('Unable to parse DESCRIBE results:', results);
+            return [];
+        }
+
+        function formatURI(uri) {
+            if (typeof uri !== 'string') return uri;
+            // Remove common prefixes
+            uri = uri.replace('http://www.semanticweb.org/shimanto/ontologies/2024/10/smart-home/', '');
+            uri = uri.replace('http://users.jyu.fi/~mrrahman/smart-home-individuals#', '');
+            if (uri.includes('#')) {
+                return uri.split('#').pop();
+            }
+            return uri.split('/').pop();
+        }
+
+        function formatValue(value) {
+            if (typeof value !== 'string') return value;
+            // Handle quoted literals
+            if (value.startsWith('"') && value.endsWith('"')) {
+                return value.slice(1, -1);
+            }
+            // Handle language tags
+            if (value.includes('@')) {
+                return value.split('@')[0].replace(/"/g, '');
+            }
+            // Handle datatypes
+            if (value.includes('^^')) {
+                return value.split('^^')[0].replace(/"/g, '');
+            }
+            return value;
         }
     </script>
 </body>
